@@ -2,6 +2,9 @@
 #include <ModbusMaster485.h>
 #include <Math.h>
 
+#include <string.h>
+#include <stddef.h>
+
 #include <Wire.h>
 #include "Adafruit_LEDBackpack.h"
 #include "Adafruit_GFX.h"
@@ -13,7 +16,12 @@ union {
 reading;
 
 float finalValue = 0;
+float oldfinalValue = 0;
+float finalValueDiff = 0;
+float threshold = 0;
 int count = 0;
+unsigned long previousMillis = 0; // last time update
+long interval = 30000; // interval at which to do something (milliseconds)
 
 // Instantiate ModbusMaster object as slave ID 1
 ModbusMaster485 node(1);
@@ -38,62 +46,62 @@ delay(1000);
 
 void loop()
 {
-unsigned long currentMillis = millis();
- 
-    count = 0;
-    
-    result = node.readHoldingRegisters(53,2); 
-    while(result != 0 || count < 5){
-    count++;  
-    delay(100);
-    result = node.readHoldingRegisters(53,2); 
-    }
-
-    USB.print("Level in feet: ");
-    if(result == 0)
-    {
-    reading.ints[0] = node.getResponseBuffer(1);
-    reading.ints[1] = node.getResponseBuffer(0);
-    node.clearResponseBuffer();
-    finalValue = reading.toFloat;
-    USB.print(finalValue);
-    Utils.blinkGreenLED(50,1);
-    reading.ints[0] = 0;
-    reading.ints[1] = 0;
-    }
-    else {
-    reading.ints[0] = 0;
-    reading.ints[1] = 0;
-    Utils.blinkRedLED(50,1);
-    }
-    USB.print("\n");
-   
-  matrix.clear();
-  matrix.drawCircle(3,3, 3, LED_ON);
-  matrix.writeDisplay();  // write the changes we just made to the display
-  delay(500);
-
-  matrix.setTextSize(1);
-  matrix.setTextWrap(false);  // we dont want text to wrap so it scrolls nicely
-  matrix.setTextColor(LED_ON);
-  for (int8_t x=0; x>=-120; x--) {
-    matrix.clear();
-    matrix.setCursor(x,0);
-    matrix.print("Groundwater Level is");
-    matrix.writeDisplay();
-    delay(70);
-  }
-  matrix.setRotation(0);
-  for (int8_t x=0; x>=-120; x--) {
-    matrix.clear();
-    matrix.setCursor(x,0);
-    matrix.print(finalValue);
-    matrix.print("ft below grade");
-    matrix.writeDisplay();
-    delay(70);
-  }
-  matrix.setRotation(0); 
+  unsigned long currentMillis = millis();
+  if((currentMillis - previousMillis > interval) || finalValueDiff > 0.5) {
+      previousMillis = currentMillis;
+      count = 0;
+      
+      result = node.readHoldingRegisters(53,2); 
+      while(result != 0 || count < 5){
+      count++;  
+      delay(100);
+      result = node.readHoldingRegisters(53,2); 
+      }
   
+      USB.print("Level in feet: ");
+      if(result == 0)
+      {
+      reading.ints[0] = node.getResponseBuffer(1);
+      reading.ints[1] = node.getResponseBuffer(0);
+      node.clearResponseBuffer();
+      finalValue = reading.toFloat;
+      finalValueDiff = finalValue - oldfinalValue;
+      oldfinalValue = finalValue;
+      USB.print(finalValue);
+      USB.print(finalValueDiff);
+      USB.print(oldfinalValue);
+      Utils.blinkGreenLED(50,1);
+      reading.ints[0] = 0;
+      reading.ints[1] = 0;
+      }
+      else {
+      reading.ints[0] = 0;
+      reading.ints[1] = 0;
+      Utils.blinkRedLED(50,1);
+      }
+      USB.print("\n");
+     
+      matrix.setTextSize(1);
+      matrix.setTextWrap(false);  // we dont want text to wrap so it scrolls nicely
+      matrix.setTextColor(LED_ON);
+      for (int8_t x=0; x>=-120; x--) {
+        matrix.clear();
+        matrix.setCursor(x,0);
+        matrix.print("Groundwater Level is");
+        matrix.writeDisplay();
+        delay(70);
+      }
+      matrix.setRotation(0);
+      for (int8_t x=0; x>=-120; x--) {
+        matrix.clear();
+        matrix.setCursor(x,0);
+        matrix.print(finalValue);
+        matrix.print("ft");
+        matrix.writeDisplay();
+        delay(70);
+      }
+      matrix.setRotation(0); 
+    }
 }
 
 
